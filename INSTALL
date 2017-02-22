@@ -91,10 +91,10 @@ any of the following arguments (not a definitive list) to 'configure':
 --with-malloc-conf=<malloc_conf>
     Embed <malloc_conf> as a run-time options string that is processed prior to
     the malloc_conf global variable, the /etc/malloc.conf symlink, and the
-    MALLOC_CONF environment variable.  For example, to change the default chunk
-    size to 256 KiB:
+    MALLOC_CONF environment variable.  For example, to change the default decay
+    time to 30 seconds:
 
-      --with-malloc-conf=lg_chunk:18
+      --with-malloc-conf=decay_time:30
 
 --disable-cc-silence
     Disable code that silences non-useful compiler warnings.  This is mainly
@@ -124,9 +124,10 @@ any of the following arguments (not a definitive list) to 'configure':
     option documentation for usage details.
 
 --enable-ivsalloc
-    Enable validation code, which verifies that pointers reside within
-    jemalloc-owned chunks before dereferencing them.  This incurs a minor
-    performance hit.
+    Enable validation code for malloc_usable_size() and sallocx(), which
+    verifies that pointers reside within jemalloc-owned extents before
+    dereferencing metadata.  This incurs a minor performance hit, and causes
+    the functions to return 0 for failed lookups.
 
 --enable-prof
     Enable heap profiling and leak detection functionality.  See the "opt.prof"
@@ -202,6 +203,15 @@ any of the following arguments (not a definitive list) to 'configure':
     most extreme case increases physical memory usage for the 16 KiB size class
     to 20 KiB.
 
+--disable-syscall
+    Disable use of syscall(2) rather than {open,read,write,close}(2).  This is
+    intended as a workaround for systems that place security limitations on
+    syscall(2).
+
+--disable-cxx
+    Disable C++ integration.  This will cause new and delete operator
+    implementations to be omitted.
+
 --with-xslroot=<path>
     Specify where to find DocBook XSL stylesheets when building the
     documentation.
@@ -216,6 +226,11 @@ any of the following arguments (not a definitive list) to 'configure':
     option may be useful when cross-compiling in combination with
     --with-lg-page, but its primary use case is for integration with FreeBSD's
     libc, wherein jemalloc is embedded.
+
+--with-lg-hugepage=<lg-hugepage>
+    Specify the base 2 log of the system huge page size.  This option is useful
+    when cross compiling, or when overriding the default for systems that do
+    not explicitly support huge pages.
 
 --with-lg-size-class-group=<lg-size-class-group>
     Specify the base 2 log of how many size classes to use for each doubling in
@@ -297,17 +312,18 @@ The following environment variables (not a definitive list) impact configure's
 behavior:
 
 CFLAGS="?"
-    Pass these flags to the compiler.  You probably shouldn't define this unless
-    you know what you are doing.  (Use EXTRA_CFLAGS instead.)
+CXXFLAGS="?"
+    Pass these flags to the C/C++ compiler.  Any flags set by the configure
+    script are prepended, which means explicitly set flags generally take
+    precedence.  Take care when specifying flags such as -Werror, because
+    configure tests may be affected in undesirable ways.
 
 EXTRA_CFLAGS="?"
-    Append these flags to CFLAGS.  This makes it possible to add flags such as
-    -Werror, while allowing the configure script to determine what other flags
-    are appropriate for the specified configuration.
-
-    The configure script specifically checks whether an optimization flag (-O*)
-    is specified in EXTRA_CFLAGS, and refrains from specifying an optimization
-    level if it finds that one has already been specified.
+EXTRA_CXXFLAGS="?"
+    Append these flags to CFLAGS/CXXFLAGS, without passing them to the
+    compiler(s) during configuration.  This makes it possible to add flags such
+    as -Werror, while allowing the configure script to determine what other
+    flags are appropriate for the specified configuration.
 
 CPPFLAGS="?"
     Pass these flags to the C preprocessor.  Note that CFLAGS is not passed to
@@ -322,6 +338,15 @@ LDFLAGS="?"
 
 PATH="?"
     'configure' uses this to find programs.
+
+In some cases it may be necessary to work around configuration results that do
+not match reality.  For example, Linux 4.5 added support for the MADV_FREE flag
+to madvise(2), which can cause problems if building on a host with MADV_FREE
+support and deploying to a target without.  To work around this, use a cache
+file to override the relevant configuration variable defined in configure.ac,
+e.g.:
+
+    echo "je_cv_madv_free=no" > config.cache && ./configure -C
 
 === Advanced compilation =======================================================
 

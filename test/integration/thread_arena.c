@@ -1,10 +1,9 @@
 #include "test/jemalloc_test.h"
 
-#define	NTHREADS 10
+#define NTHREADS 10
 
 void *
-thd_start(void *arg)
-{
+thd_start(void *arg) {
 	unsigned main_arena_ind = *(unsigned *)arg;
 	void *p;
 	unsigned arena_ind;
@@ -16,8 +15,8 @@ thd_start(void *arg)
 	free(p);
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size, &main_arena_ind,
-	    sizeof(main_arena_ind)))) {
+	if ((err = mallctl("thread.arena", (void *)&arena_ind, &size,
+	    (void *)&main_arena_ind, sizeof(main_arena_ind)))) {
 		char buf[BUFERROR_BUF];
 
 		buferror(err, buf, sizeof(buf));
@@ -25,7 +24,8 @@ thd_start(void *arg)
 	}
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
+	if ((err = mallctl("thread.arena", (void *)&arena_ind, &size, NULL,
+	    0))) {
 		char buf[BUFERROR_BUF];
 
 		buferror(err, buf, sizeof(buf));
@@ -34,11 +34,10 @@ thd_start(void *arg)
 	assert_u_eq(arena_ind, main_arena_ind,
 	    "Arena index should be same as for main thread");
 
-	return (NULL);
+	return NULL;
 }
 
-TEST_BEGIN(test_thread_arena)
-{
+TEST_BEGIN(test_thread_arena) {
 	void *p;
 	unsigned arena_ind;
 	size_t size;
@@ -50,7 +49,8 @@ TEST_BEGIN(test_thread_arena)
 	assert_ptr_not_null(p, "Error in malloc()");
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
+	if ((err = mallctl("thread.arena", (void *)&arena_ind, &size, NULL,
+	    0))) {
 		char buf[BUFERROR_BUF];
 
 		buferror(err, buf, sizeof(buf));
@@ -71,9 +71,7 @@ TEST_BEGIN(test_thread_arena)
 TEST_END
 
 int
-main(void)
-{
-
-	return (test(
-	    test_thread_arena));
+main(void) {
+	return test(
+	    test_thread_arena);
 }

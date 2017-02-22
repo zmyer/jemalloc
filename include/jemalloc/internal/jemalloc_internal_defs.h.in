@@ -1,5 +1,5 @@
 #ifndef JEMALLOC_INTERNAL_DEFS_H_
-#define	JEMALLOC_INTERNAL_DEFS_H_
+#define JEMALLOC_INTERNAL_DEFS_H_
 /*
  * If JEMALLOC_PREFIX is defined via --with-jemalloc-prefix, it will cause all
  * public APIs to be prefixed.  This makes it possible, with some care, to use
@@ -21,6 +21,13 @@
  * order to yield to another virtual CPU.
  */
 #undef CPU_SPINWAIT
+
+/*
+ * Number of significant bits in virtual addresses.  This may be less than the
+ * total number of bits in a pointer, e.g. on x64, for which the uppermost 16
+ * bits are the same as bit 47.
+ */
+#undef LG_VADDR
 
 /* Defined if C11 atomics are available. */
 #undef JEMALLOC_C11ATOMICS
@@ -56,15 +63,18 @@
 #undef JEMALLOC_HAVE_BUILTIN_CLZ
 
 /*
- * Defined if madvise(2) is available.
+ * Defined if os_unfair_lock_*() functions are available, as provided by Darwin.
  */
-#undef JEMALLOC_HAVE_MADVISE
+#undef JEMALLOC_OS_UNFAIR_LOCK
 
 /*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */
 #undef JEMALLOC_OSSPIN
+
+/* Defined if syscall(2) is usable. */
+#undef JEMALLOC_USE_SYSCALL
 
 /*
  * Defined if secure_getenv(3) is available.
@@ -75,6 +85,24 @@
  * Defined if issetugid(2) is available.
  */
 #undef JEMALLOC_HAVE_ISSETUGID
+
+/* Defined if pthread_atfork(3) is available. */
+#undef JEMALLOC_HAVE_PTHREAD_ATFORK
+
+/*
+ * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE
+
+/*
+ * Defined if clock_gettime(CLOCK_MONOTONIC, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC
+
+/*
+ * Defined if mach_absolute_time() is available.
+ */
+#undef JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
 
 /*
  * Defined if _malloc_thread_cleanup() exists.  At least in the case of
@@ -137,7 +165,7 @@
 #undef JEMALLOC_TCACHE
 
 /*
- * JEMALLOC_DSS enables use of sbrk(2) to allocate chunks from the data storage
+ * JEMALLOC_DSS enables use of sbrk(2) to allocate extents from the data storage
  * segment (DSS).
  */
 #undef JEMALLOC_DSS
@@ -167,6 +195,13 @@
 #undef LG_PAGE
 
 /*
+ * One huge page is 2^LG_HUGEPAGE bytes.  Note that this is defined even if the
+ * system does not explicitly support huge pages; system calls that require
+ * explicit huge page support are separately configured.
+ */
+#undef LG_HUGEPAGE
+
+/*
  * If defined, adjacent virtual memory mappings with identical attributes
  * automatically coalesce, and they fragment when changes are made to subranges.
  * This is the normal order of things for mmap()/munmap(), but on Windows
@@ -176,7 +211,7 @@
 #undef JEMALLOC_MAPS_COALESCE
 
 /*
- * If defined, use munmap() to unmap freed chunks, rather than storing them for
+ * If defined, use munmap() to unmap freed extents, rather than storing them for
  * later reuse.  This is disabled by default on Linux because common sequences
  * of mmap()/munmap() calls will cause virtual memory map holes.
  */
@@ -184,6 +219,12 @@
 
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef JEMALLOC_TLS
+
+/*
+ * Used to mark unreachable code to quiet "end of non-void" compiler warnings.
+ * Don't use this directly; instead use unreachable() from util.h
+ */
+#undef JEMALLOC_INTERNAL_UNREACHABLE
 
 /*
  * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
@@ -195,7 +236,7 @@
 
 /*
  * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside
- * within jemalloc-owned chunks before dereferencing them.
+ * within jemalloc-owned extents before dereferencing them.
  */
 #undef JEMALLOC_IVSALLOC
 
@@ -209,7 +250,6 @@
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE
-#undef JEMALLOC_ZONE_VERSION
 
 /*
  * Methods for determining whether the OS overcommits.
@@ -220,18 +260,26 @@
 #undef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 #undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
 
+/* Defined if madvise(2) is available. */
+#undef JEMALLOC_HAVE_MADVISE
+
 /*
  * Methods for purging unused pages differ between operating systems.
  *
- *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,
- *                                 such that new pages will be demand-zeroed if
- *                                 the address region is later touched.
- *   madvise(..., MADV_FREE) : On FreeBSD and Darwin, this marks pages as being
- *                             unused, such that they will be discarded rather
- *                             than swapped out.
+ *   madvise(..., MADV_FREE) : This marks pages as being unused, such that they
+ *                             will be discarded rather than swapped out.
+ *   madvise(..., MADV_DONTNEED) : This immediately discards pages, such that
+ *                                 new pages will be demand-zeroed if the
+ *                                 address region is later touched.
  */
-#undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_FREE
+#undef JEMALLOC_PURGE_MADVISE_DONTNEED
+
+/*
+ * Defined if transparent huge pages are supported via the MADV_[NO]HUGEPAGE
+ * arguments to madvise(2).
+ */
+#undef JEMALLOC_THP
 
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
